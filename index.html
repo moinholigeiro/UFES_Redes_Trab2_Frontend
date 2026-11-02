@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https: http://127.0.0.1:* http://localhost:*; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'" />
+    <title>Gateway acadêmico — UFES</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <main>
+      <header><h1>Gateway acadêmico de LLMs</h1><p>Extração acadêmica sintética. Não é ferramenta de diagnóstico ou recomendação.</p></header>
+      <section aria-labelledby="auth-title">
+        <h2 id="auth-title">Conexão</h2>
+        <label>URL do Backend <input id="api-url" type="url" value="https://localhost:8080" autocomplete="url" /></label>
+        <label>Token provisionado <input id="token" type="password" autocomplete="off" /></label>
+        <button id="logout" type="button">Limpar sessão</button>
+      </section>
+      <form id="generation">
+        <h2>Nova requisição</h2>
+        <label>Domínio <select id="domain"><option value="redes">Redes</option><option value="prontuario">Extração sintética de prontuário</option><option value="auto">Automático</option></select></label>
+        <label>Texto <textarea id="input" required maxlength="12000" rows="8"></textarea></label>
+        <label>Ou arquivo .txt UTF-8 (máximo 256 KiB) <input id="file" type="file" accept=".txt,text/plain" /></label>
+        <p class="warning">Use apenas exemplos sintéticos. Não insira prontuários ou dados pessoais reais.</p>
+        <button id="submit" type="submit">Enviar</button>
+        <button id="cancel" type="button" disabled>Cancelar</button>
+        <button id="retry" type="button" disabled>Tentar novamente</button>
+      </form>
+      <section aria-live="polite" aria-atomic="false">
+        <h2 id="status">Aguardando</h2><dl id="meta"></dl>
+        <pre id="output"></pre>
+        <button id="download" type="button" disabled>Baixar resultado validado</button>
+      </section>
+    </main>
+  </body>
+</html>

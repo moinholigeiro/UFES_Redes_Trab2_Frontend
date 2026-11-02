@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ufes.example/contracts/public/v1/events.json",
+  "title": "Eventos SSE públicos do Gateway",
+  "oneOf": [
+    {"$ref": "#/$defs/meta"},
+    {"$ref": "#/$defs/delta"},
+    {"$ref": "#/$defs/result"},
+    {"$ref": "#/$defs/done"},
+    {"$ref": "#/$defs/error"}
+  ],
+  "$defs": {
+    "meta": {"type": "object", "required": ["request_id", "domain", "model", "node", "attempt"], "properties": {"request_id": {"type": "string"}, "domain": {"type": "string"}, "requested_domain": {"type": ["string", "null"]}, "model": {"type": "string"}, "node": {"type": "string"}, "attempt": {"type": "integer", "minimum": 1}, "attempt_nodes": {"type": "array", "items": {"type": "string"}}}},
+    "delta": {"type": "object", "required": ["seq", "text"], "properties": {"seq": {"type": "integer", "minimum": 1}, "text": {"type": "string"}}},
+    "result": {"type": "object", "required": ["schema", "data"], "properties": {"schema": {"type": "string"}, "data": {"type": "object"}}},
+    "done": {"type": "object", "required": ["finish_reason", "completion_tokens", "tokens_source"], "properties": {"finish_reason": {"const": "stop"}, "completion_tokens": {"type": ["integer", "null"], "minimum": 0}, "tokens_source": {"enum": ["backend_usage", "unknown"]}}},
+    "error": {"type": "object", "required": ["code", "message", "partial", "retryable"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}, "partial": {"type": "boolean"}, "retryable": {"type": "boolean"}}}
+  }
+}

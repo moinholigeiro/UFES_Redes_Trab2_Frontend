@@ -1,0 +1,46 @@
+# Ambiente (devenv/nix e venv) — reconstruível a partir de devenv.nix/devenv.yaml
+.devenv/
+.direnv/
+.venv/
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+*.log
+
+# Pesos de modelos (GGUF, vários GB) e artefatos gerados
+models/
+artifacts/
+migration_inventory.local.json
+
+# Dataset com licença de redistribuição pendente (permanece local)
+data/anonymedbr/
+
+# Segredos e credenciais (tokens, chaves TLS)
+*.token
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.p12
+*.pfx
+*.jks
+
+# Python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
