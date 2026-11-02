@@ -1,5 +1,4 @@
 import { createController } from './features/generation/controller.js';
-import './style.css';
 
 const $ = (id) => document.getElementById(id);
 const form = $('generation');
@@ -17,7 +16,6 @@ const controller = createController({
     if (state.state === 'complete') {
       $('status').textContent += ` · ${state.e2eObservedMs} ms (navegador)`;
       $('download').disabled = !finalResult;
-      if (!finalResult) output.textContent = 'Conclusão recebida. Não há resultado estruturado para exportar.';
     }
     if (state.state === 'error' || state.state === 'cancelled') { finalResult = null; $('download').disabled = true; }
   },

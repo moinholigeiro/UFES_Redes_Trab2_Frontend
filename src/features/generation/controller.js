@@ -39,6 +39,7 @@ export function createController({ onState, onEvent }) {
           onState({ state: 'generating', meta: data, requestId, ttftObservedMs: Math.round(performance.now() - start) });
         } else if (frame.event === 'result') {
           sawResult = true;
+          onEvent({ event: 'result', data });
           onState({ state: 'validating', meta: data });
         } else if (frame.event === 'done') {
           if (sawError || (resolvedSchema && !sawResult)) throw new Error('Conclusão sem resultado validado consistente.');
