@@ -16,10 +16,10 @@ test('SSE parser handles split UTF-8, CRLF, comments and multiple data lines', a
   assert.deepEqual(frames, [{ event: 'delta', data: '{"text":"ação\nsegunda linha' }]);
 });
 
-test('SSE parser emits a final unterminated frame', async () => {
+test('SSE parser does not emit a final unterminated frame', async () => {
   const frames = [];
   for await (const frame of parseSSE(stream([enc.encode('event: error\ndata: {"code":"eof"}')])) ) frames.push(frame);
-  assert.deepEqual(frames, [{ event: 'error', data: '{"code":"eof"}' }]);
+  assert.deepEqual(frames, []);
 });
 
 test('SSE parser preserves CRLF split across network chunks', async () => {

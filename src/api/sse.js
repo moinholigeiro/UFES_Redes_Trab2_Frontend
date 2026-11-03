@@ -1,6 +1,6 @@
 export async function* parseSSE(body) {
   const reader = body.getReader();
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder('utf-8', { fatal: true });
   let buffer = '';
   let event = 'message';
   let data = [];
@@ -35,14 +35,10 @@ export async function* parseSSE(body) {
       }
       if (done) break;
     }
-    if (buffer) {
-      const line = buffer;
-      if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
-      else if (line.startsWith('event:')) event = line.slice(6).replace(/^ /, '');
-    }
-    const final = dispatch();
-    if (final) yield final;
+    // SSE frames are dispatched only by a blank-line delimiter. An unterminated
+    // final line/frame is incomplete and must not become a usable result.
   } finally {
+    try { await reader.cancel(); } catch { /* stream may already be closed */ }
     reader.releaseLock();
   }
 }
