@@ -161,3 +161,55 @@ test('controller requires HTTPS for remote origins and rejects URL credentials',
     assert.match(states.at(-1).error.message, /inválida ou insegura/);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test('contrato v1.1: queued informa a posição e o meta repete quando o pedido muda de nó', async () => {
+  const meta2 = { ...meta('req-q'), node: 'node-b', attempt: 2, attempt_nodes: ['node-a', 'node-b'] };
+  await withFetch(sseResponse([
+    ['meta', meta('req-q')],
+    ['queued', { position: 2, node: 'node-a' }],
+    ['meta', meta2],
+    ['queued', { position: 1, node: 'node-b' }],
+    ['delta', { seq: 1, text: 'ok' }],
+    ['done', done('req-q')],
+  ]), async () => {
+    const states = [];
+    const controller = createController({ onEvent: () => {}, onState: (item) => states.push(item) });
+    await controller.run({ baseUrl: 'https://backend.test', token: 't', domain: 'redes', input: 'p', trustRemoteOrigin: true });
+    const positions = states.filter((s) => s.state === 'queued').map((s) => [s.queuePosition, s.node]);
+    assert.deepEqual(positions, [[2, 'node-a'], [1, 'node-b']]);
+    assert.equal(states.at(-1).state, 'complete');
+    assert.equal(states.at(-1).meta.attempt, 2);
+  });
+});
+
+test('meta repetido com a mesma tentativa ou depois de um delta é rejeitado', async () => {
+  for (const events of [
+    [['meta', meta('req-r')], ['meta', meta('req-r')]],
+    [['meta', meta('req-r')], ['delta', { seq: 1, text: 'a' }], ['meta', { ...meta('req-r'), attempt: 2 }]],
+  ]) {
+    await withFetch(sseResponse(events), async () => {
+      const states = [];
+      const controller = createController({ onEvent: () => {}, onState: (item) => states.push(item) });
+      await controller.run({ baseUrl: 'https://backend.test', token: 't', domain: 'redes', input: 'p', trustRemoteOrigin: true });
+      assert.equal(states.at(-1).state, 'error');
+    });
+  }
+});
+
+test('texto cortado no limite de tokens (finish_reason length) conclui; JSON cortado não', async () => {
+  const cut = (id) => ({ ...done(id), finish_reason: 'length', completion_tokens: 5, tokens_source: 'backend_usage' });
+  await withFetch(sseResponse([['meta', meta('req-l')], ['delta', { seq: 1, text: 'a' }], ['done', cut('req-l')]]), async () => {
+    const states = [];
+    const controller = createController({ onEvent: () => {}, onState: (item) => states.push(item) });
+    await controller.run({ baseUrl: 'https://backend.test', token: 't', domain: 'redes', input: 'p', trustRemoteOrigin: true });
+    assert.equal(states.at(-1).state, 'complete');
+    assert.equal(states.at(-1).done.completion_tokens, 5);
+  });
+  const schemaMeta = meta('req-j', 'prontuario', 'prontuario-v1');
+  await withFetch(sseResponse([['meta', schemaMeta], ['result', { schema: 'prontuario-v1', data: { a: 1 } }], ['done', cut('req-j')]]), async () => {
+    const states = [];
+    const controller = createController({ onEvent: () => {}, onState: (item) => states.push(item) });
+    await controller.run({ baseUrl: 'https://backend.test', token: 't', domain: 'prontuario', input: 'p', trustRemoteOrigin: true });
+    assert.equal(states.at(-1).state, 'error');
+  });
+});

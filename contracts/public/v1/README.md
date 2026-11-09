@@ -1,6 +1,29 @@
-# Contrato público v1
+# Contrato público v1.1
 
-A fonte executável dos DTOs/eventos segue em `src/llm_gateway/protocol.py` e o stream é servido por FastAPI. Este JSON Schema registra o envelope de dados de `meta`, `delta`, `result`, `done` e `error`; validação da sequência também exige `result` (quando schema configurado) seguido por `done`, ou exatamente um `error`. O Frontend deve importar/sincronizar esta versão e não inferir tokens a partir da quantidade de eventos `delta`.
-# Contrato público v1
+A fonte executável dos eventos é `src/llm_gateway/api.py` (`_event_stream`) e `src/llm_gateway/scheduler.py`.
+`events.json` descreve o conteúdo de cada evento. O Frontend guarda uma cópia idêntica, conferida por
+`scripts/check-public-contract.sh`.
 
-`events.json` é a cópia do schema-envelope mantido pelo Backend em `../UFES_Redes_Trab2_Backend/contracts/public/v1/events.json`. Verifique identidade com `cmp` durante integração. As regras da sequência são: exatamente um `meta` primeiro; zero ou mais `delta` com sequência começando em 1; em extração, um `result` compatível com o schema antes de `done`; exatamente um terminal `done` ou `error`; o frame SSE precisa do delimitador de linha em branco. EOF no meio de frame não é terminal válido.
+## Ordem dos eventos de um pedido
+
+```text
+meta → queued* → [meta → queued*]* → delta* → result? → done
+                                          ↘ error (pode encerrar em qualquer ponto)
+```
+
+- `meta` sai na admissão, antes de qualquer outro evento. Sai **de novo** se o pedido mudar de nó antes do
+  primeiro `delta` (failover ou migração da fila de um nó que caiu); o `attempt` aumenta.
+- `queued {position, node}` informa a posição na fila do nó, a cada mudança. Posição 1 = o próximo a ser
+  atendido. É informativo: o servidor pode pular atualizações se o cliente estiver lento.
+- `delta {seq, text}`: trecho gerado. **Não é um token**; a contagem de tokens vem no `done`.
+- `result {schema, data}`: só em domínios de extração JSON, depois da validação.
+- `done.finish_reason`: `stop` (o modelo terminou) ou `length` (cortado no limite de tokens, só em texto).
+- Exatamente um evento terminal por pedido: `done` ou `error`.
+- Comentários SSE (`: keepalive`) não são eventos.
+
+## Histórico
+
+| Versão | Data | Mudança |
+|---|---|---|
+| v1 | 02/11/2026 | `meta`, `delta`, `result`, `done`, `error` |
+| v1.1 | 09/11/2026 | Novo evento `queued`; `meta` na admissão e repetido em troca de nó; `done.finish_reason` aceita `length` |

@@ -5,3 +5,7 @@ label { display: block; margin: .8rem 0; } input, textarea, select { display: bl
 button { padding: .55rem .85rem; margin: .25rem; cursor: pointer; } button:disabled { cursor: not-allowed; opacity: .55; }
 .warning { color: #7a3e00; font-weight: 600; } pre { white-space: pre-wrap; overflow-wrap: anywhere; min-height: 4rem; background: #111820; color: #f6f8fa; padding: 1rem; border-radius: .4rem; }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: .2rem .8rem; } dt { font-weight: 700; }
+.queue { background: #fff3cd; border: 1px solid #e0c56e; border-radius: .4rem; padding: .5rem .8rem; font-weight: 600; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .8rem; margin-top: 1rem; }
+.card { border: 1px solid #d8dee5; border-radius: .5rem; padding: .7rem .9rem; background: #fafbfc; }
+.card h3 { margin: 0 0 .4rem; font-size: 1rem; } .card ul { margin: 0; padding-left: 1.1rem; } .empty { color: #6b7785; margin: 0; }
