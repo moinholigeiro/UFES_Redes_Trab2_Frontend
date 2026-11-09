@@ -1,11 +1,48 @@
 # UFES Redes Trab2 — Frontend
 
-Cliente web leve sem dependências de runtime. Só fala com a API pública do Backend por `fetch` POST + SSE com Bearer no header; não sabe endereço/modelo de nós.
+Tela web do Projeto 1 (Redes de Computadores, UFES). É HTML, CSS e JavaScript nativo, sem dependências. A tela manda
+o pedido ao gateway por `fetch` POST e lê a resposta em **SSE**, mostrando:
 
-## Desenvolvimento e testes
+- a **posição na fila** ao vivo;
+- o texto chegando token a token;
+- as **métricas do pedido** (TTFT, latência, tokens/s);
+- o prontuário validado em **cartões**.
 
-Requer Node 20+ (Node 24 usado no desenvolvimento). `npm test` executa parser SSE com Node test runner; `npm run build` gera `dist/`. Sirva `dist/` por HTTPS, preferencialmente na mesma origem do proxy `/v1`. Não abra `index.html` via `file://` em produção.
+Diagramas e código explicados: [EXPLICACAO.md](EXPLICACAO.md).
 
-Para Backend em origem HTTPS diferente, marque a confirmação de confiança antes de enviar o Bearer. Configure essa origem exata na allowlist `gateway.cors_origins` do Backend; evite wildcard e prefira proxy de mesma origem. HTTP remoto e URLs com usuário/senha embutidos são recusados pelo cliente.
+## Rodar
 
-Token e resultados ficam somente em memória; logout limpa os campos e dados. Saídas são inseridas como texto (sem HTML/Markdown ativo). Exportação estruturada é habilitada apenas após `result` e `done` consistentes. Use exclusivamente textos sintéticos, nunca dados reais de saúde.
+A tela não precisa de servidor próprio: o gateway a serve na mesma origem da API, sem CORS. Com os três repositórios
+lado a lado:
+
+```bash
+cd ../UFES_Redes_Trab2_Backend
+python3 lab.py demo        # abre https://127.0.0.1:8443 e imprime o token para colar na tela
+```
+
+Para servir de outra origem, use `npm run build` e sirva `dist/` por HTTPS. Nesse caso, configure a origem exata em
+`gateway.cors_origins` no Backend.
+
+## Testes
+
+```bash
+npm test          # Node 20+; 15 testes do parser SSE e da máquina de estados
+npm run build     # copia index.html e src/ para dist/
+```
+
+O CI do GitHub Actions roda os dois a cada push.
+
+## Contrato
+
+A tela segue o contrato público **v1.1** do Backend. A cópia está em `contracts/public/v1/`, e o Backend confere se é
+idêntica com `scripts/check-public-contract.sh`. Eventos: `meta`, `queued`, `delta`, `result`, `done` e `error`.
+
+## Segurança
+
+- Token e resultados ficam só em memória; "Limpar sessão" apaga tudo.
+- Toda saída do modelo entra como texto (`textContent`), nunca como HTML.
+- A CSP permite scripts só da própria origem.
+- HTTP só é aceito para `localhost`; URL remota precisa de HTTPS e de confirmação explícita antes de mandar o token.
+- **Use apenas textos sintéticos**: nunca dados reais de saúde.
+
+Histórico: [CHANGELOG.md](CHANGELOG.md).

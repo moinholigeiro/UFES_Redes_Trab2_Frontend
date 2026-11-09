@@ -1,16 +1,85 @@
 # Explicação do código — Frontend
 
-Este frontend é HTML, CSS e JavaScript nativo (ES modules), sem framework nem dependências de runtime. As explicações seguem blocos funcionais de cada arquivo e descrevem o comportamento atual.
+A tela é HTML, CSS e JavaScript nativo (ES modules), sem framework e sem dependências. Ela fala só com a API pública do
+Backend: não sabe de nós, modelos ou filas, a não ser pelo que os eventos SSE contam. A seção 1 mostra em diagramas
+como ela se encaixa; a partir da seção 2, o código é explicado arquivo por arquivo.
 
-## 1. Fluxo da aplicação
+## 1. Diagramas
 
-1. `index.html` fornece os campos e controles.
-2. `src/main.js` conecta DOM e eventos de usuário ao controller.
-3. `src/features/generation/controller.js` valida origem, envia POST autenticado e aplica a máquina de estados SSE.
-4. `src/api/sse.js` transforma bytes do `ReadableStream` em frames completos.
-5. `src/style.css` apresenta a página; `scripts/build.mjs` gera cópia estática em `dist/`.
+### 1.1 Onde a tela fica no sistema
 
-O frontend não conhece filas nem escolhe nós: conversa somente com API pública do Backend.
+```mermaid
+flowchart LR
+    subgraph NAV["Navegador"]
+        UI["index.html + main.js<br/>formulário, fila, métricas"]
+        CARDS["cards.js<br/>prontuário em cartões"]
+        CTRL["controller.js<br/>máquina de estados"]
+        SSE["api/sse.js<br/>parser SSE"]
+    end
+    subgraph BE["Gateway (repo Backend)"]
+        STATIC["GET / e /src/*<br/>serve esta tela"]
+        API["POST /v1/generate<br/>stream SSE"]
+    end
+    STATIC -->|"mesma origem: sem CORS"| UI
+    UI --> CTRL --> SSE
+    SSE -->|"fetch POST + Bearer<br/>HTTPS"| API
+    API -->|"meta · queued · delta · result · done · error"| SSE
+    CTRL --> CARDS
+```
+
+O `lab.py` do Backend sobe o gateway com `frontend_dir` apontando para este repositório. A tela abre em
+`https://127.0.0.1:8443` e usa a própria origem como URL da API.
+
+### 1.2 A máquina de estados de um pedido (`controller.js`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> connecting: run()
+    connecting --> waiting: 200 text/event-stream
+    connecting --> error: HTTP 4xx/5xx, URL insegura
+    waiting --> waiting: meta (de novo, se mudou de nó antes do 1º delta)
+    waiting --> queued: queued {position}
+    queued --> queued: queued (posição menor) ou meta (outro nó)
+    queued --> generating: primeiro delta (TTFT)
+    waiting --> generating: primeiro delta
+    generating --> generating: delta (seq sem lacunas)
+    generating --> validating: result (prontuário)
+    validating --> complete: done
+    generating --> complete: done (texto: stop ou length)
+    generating --> error: error {partial: true}
+    queued --> error: error
+    connecting --> cancelled: cancel()
+    queued --> cancelled: cancel()
+    generating --> cancelled: cancel()
+    complete --> [*]
+    error --> [*]
+    cancelled --> [*]
+```
+
+Qualquer evento fora dessa ordem (delta antes do meta, `meta` repetido sem mudar de nó, `done` sem `result` no
+prontuário, evento desconhecido, stream que acaba sem terminal) leva ao estado `error`. A tela nunca mostra como
+concluído um resultado incoerente.
+
+### 1.3 O que a tela mostra
+
+| Parte | De onde vem |
+|---|---|
+| "Posição na fila do nó X: 2º" | Evento `queued {position, node}` |
+| request_id, domínio, modelo, nó, tentativas | Evento `meta` (o último) |
+| Texto aparecendo aos poucos | Eventos `delta`, só como texto (`textContent`) |
+| Métricas: TTFT e latência | Medidas **no navegador** (`performance.now()`) |
+| Métricas: tokens e tokens/s | `done.completion_tokens`, contados pelo runtime |
+| Cartões do prontuário | Evento `result` (JSON já validado pelo gateway), montado em `cards.js` |
+
+### 1.4 Perguntas de entrevista
+
+| Pergunta | Resposta curta |
+|---|---|
+| Por que `fetch` + parser próprio, e não `EventSource`? | O `EventSource` só faz GET e não manda o header `Authorization`. O pedido é um POST com corpo e token |
+| Por que conferir a ordem dos eventos no cliente? | A tela não pode mostrar como concluído algo que o protocolo não garantiu (por exemplo, `done` sem `result` válido) |
+| Como o TTFT é medido aqui? | Do início do `fetch` até o primeiro `delta` com texto; inclui rede, TLS e fila |
+| Como evitam XSS com texto de um modelo? | Tudo entra por `textContent`; nenhum `innerHTML`. A CSP também só permite scripts da própria origem |
+| O que acontece no cancelar? | `AbortController` fecha a conexão; o gateway detecta a desconexão e libera a vaga do pedido |
 
 ## 2. `index.html` — estrutura e política de segurança
 
@@ -21,22 +90,24 @@ O frontend não conhece filas nem escolhe nós: conversa somente com API públic
 - Título, CSS e `<script type="module">`: carrega o estilo e inicia `src/main.js` como módulo ES.
 - Cabeçalho: identifica o gateway acadêmico e avisa que extração não é diagnóstico ou recomendação.
 - Seção Conexão: URL do Backend, checkbox explícito para confiar em uma origem HTTPS remota, token Bearer e botão logout/limpeza. O token é input password e fica apenas em memória no navegador.
-- Formulário: seleção de domínio (`redes`, `prontuario`, `auto`), texto, arquivo `.txt`, aviso para usar somente dados sintéticos e botões enviar/cancelar/retry.
-- Seção de resultado: região `aria-live` anuncia estado, `<dl>` recebe metadados como texto, `<pre>` mostra a geração e botão de download começa desativado.
+- Formulário: seleção de domínio (`redes`, `prontuario`; a opção `auto` saiu porque o roteador está desligado por padrão), texto (até 8.000 caracteres, o limite do gateway), arquivo `.txt`, aviso para usar somente dados sintéticos e botões enviar/cancelar/retry.
+- Seção de resultado: região `aria-live` anuncia o estado; `#queue` mostra a posição na fila; `<dl id="meta">` recebe os metadados; `<pre>` mostra a geração; `<dl id="metrics">` mostra as métricas do pedido; `#cards` recebe os cartões do prontuário; o botão de download começa desativado.
 
 ## 3. `src/main.js` — DOM e interações
 
 - Importa `createController` e define `$` como atalho para `document.getElementById`.
 - `form`, `output` e `finalResult`: guardam referências a elementos e o resultado exportável atual.
 - Criação do controller:
-  - `onState(state)` converte nomes internos em status em português, habilita/desabilita cancelamento/retry, mostra metadados, inclui TTFT/E2E no sucesso e só habilita download quando existe resultado estruturado validado.
+  - `onState(state)` converte os estados em status em português e habilita ou desabilita cancelar e tentar de novo. Em `queued`, mostra a posição na fila. Em `waiting`, `queued` e `generating`, mostra os metadados. Em `complete`, mostra o painel de métricas (`renderMetrics`) e, se houver prontuário validado, os cartões (`renderProntuario`).
   - `onEvent({event,data})` acrescenta `delta.text` usando `textContent`, guarda `result` estruturado e limpa resultado no evento error. Não injeta HTML produzido pelo modelo.
-- `renderMeta(meta)`: limpa `<dl>`, cria `<dt>/<dd>` por DOM APIs e define `textContent`; exibe request ID, domínio, modelo, nó e tentativa sem interpretar saída como markup.
+- `renderPairs` / `renderMeta(meta)`: limpam o `<dl>` e criam `<dt>/<dd>` por DOM com `textContent`. Mostram request ID, domínio, modelo, nó, tentativa e os nós já tentados.
+- `renderMetrics(state)`: TTFT e latência medidos no navegador; tokens do `done` (ou "não informado pelo runtime"); tokens/s = tokens ÷ (latência − TTFT); "cortada no limite de tokens" quando `finish_reason` é `length`.
+- A URL do Backend começa com `location.origin` quando a tela é servida pelo gateway.
 - `submit`:
   1. evita navegação normal do formulário e limpa dados da execução anterior;
   2. lê texto e arquivo escolhido;
   3. exige um dos dois, valida extensão/tamanho de 64 KiB e decodifica arquivo UTF-8 estrito;
-  4. confere bytes UTF-8 e limite de 12.000 caracteres;
+  4. confere bytes UTF-8 e limite de 8.000 caracteres;
   5. chama `controller.run` com URL, token, domínio e confirmação de origem.
 - Mudança na URL desmarca confiança anterior para impedir que a confirmação de uma origem seja reaproveitada para outra.
 - Botão Cancelar chama `controller.cancel()`.
@@ -64,17 +135,17 @@ O frontend não conhece filas nem escolhe nós: conversa somente com API públic
   - faz POST a `/v1/generate` com JSON, Bearer, `Accept: text/event-stream`, `redirect: error` e `AbortSignal`;
   - para HTTP não-2xx, tenta ler JSON de erro, comunica status/Retry-After e termina em estado de erro;
   - exige body e Content-Type SSE, guarda header `X-Request-ID`, depois processa frames completos;
-  - `meta`: deve ser único, primeiro, conter request ID/domínio/modelo/nó/tentativa válidos, concordar com ID do header e definir schema string/null;
+  - `meta`: deve ser o primeiro evento, com request ID, domínio, modelo, nó e tentativa válidos, e concordar com o header. Pode vir **de novo** antes do primeiro delta, com o mesmo request ID e `attempt` maior (o pedido mudou de nó: failover ou migração da fila);
+  - `queued`: depois do meta e antes do primeiro delta, com `position` inteiro ≥ 1 e `node`; vira o estado `queued` com a posição;
   - `delta`: só após meta e antes de result, exige texto e `seq` começando em 1 sem lacunas; primeiro texto não vazio marca TTFT; envia o fragmento ao callback;
   - `result`: só em execução com schema, único e compatível com o schema da meta; guarda payload para download posterior;
-  - `done`: valida request ID, finish `stop`, contagem de tokens (inteiro/null), origem da contagem e presença/ausência coerente de result. Depois do terminal, para a leitura; conclusão inclui E2E e TTFT;
+  - `done`: valida request ID, finish `stop` (ou `length` em texto, quando a resposta foi cortada no limite de tokens; no prontuário, só `stop`), contagem de tokens (inteiro/null), origem da contagem e presença/ausência coerente de result. Depois do terminal, para a leitura; conclusão inclui E2E e TTFT;
   - `error`: exige meta anterior, campos do envelope e `partial` coerente com existência de deltas; encaminha erro e encerra sem download;
   - eventos desconhecidos, JSON malformado, sequência inválida, falta de terminal e frames incompletos causam estado de erro;
   - catch traduz aborto para cancelamento e outras exceções para erro; finally só limpa `active` se ainda for o controller dessa execução.
 - `cancel()`: invalida epoch, aborta a rede e publica estado cancelado sem permitir callback atrasado modificar a UI.
 - `retry()`: inicia uma resposta nova com parâmetros memorizados; não é replay transparente no Backend e a nova execução recebe sua própria identidade.
 - `clear()`: invalida execução, aborta request e apaga referência que retém token/texto para retry.
-- `isPrivateIpv4(host)`: helper que reconhece ranges IPv4 privados/loopback/link-local reservados; atualmente não participa do fluxo de `run`.
 
 ## 6. `src/style.css` — apresentação
 
@@ -86,6 +157,8 @@ O frontend não conhece filas nem escolhe nós: conversa somente com API públic
 - `.warning`: aviso de uso seguro destacado.
 - `pre`: preview com quebras, proteção visual contra linhas extensas e contraste escuro.
 - `dl`/`dt`: grade simples para metadados e labels em negrito.
+- `.queue`: faixa amarela da posição na fila.
+- `.cards` / `.card`: grade responsiva dos cartões do prontuário.
 
 ## 7. Build, contrato e dependências
 
@@ -99,7 +172,7 @@ Marca pacote privado ES module, declara Node mínimo 20 e scripts `npm test` (No
 
 ### `contracts/public/v1/events.json` e README
 
-O JSON Schema define formatos permitidos para payloads dos eventos públicos. O README explica a regra sequencial: meta, deltas numerados, result quando extração, e terminal único. O schema é uma cópia da fonte Backend; o script no Backend verifica igualdade byte a byte.
+O JSON Schema define formatos permitidos para payloads dos eventos públicos. O README explica a ordem (v1.1): meta, queued, meta de novo em troca de nó, deltas numerados, result na extração e um terminal só. O schema é uma cópia da fonte Backend; o script no Backend verifica igualdade byte a byte.
 
 ## 8. Testes
 
@@ -112,4 +185,13 @@ O JSON Schema define formatos permitidos para payloads dos eventos públicos. O 
 
 - `sseResponse(events)` gera resposta SSE sintética e header request ID; `withFetch` substitui fetch de modo temporário.
 - Testes cobrem result→done, domínio texto, done sem meta/result, error antes de meta, sequência inválida, TTFT no primeiro delta não vazio, aborto de execução antiga, recusa de origem não confiável, HTTP remoto e userinfo.
+- Contrato v1.1: `queued` com posição e `meta` repetido em troca de nó; `meta` repetido inválido é rejeitado; `length` conclui em texto e é rejeitado no prontuário.
 - São testes Node com `fetch` simulado; não demonstram CORS/TLS/browser reais.
+
+## 9. `src/features/generation/cards.js` — cartões do prontuário
+
+- `el`, `card`, `list`, `pairs`: criam elementos só com `textContent`. O conteúdo vem de um modelo de linguagem e não
+  é confiável, por isso nunca entra como HTML.
+- `renderProntuario(data)`: monta cinco cartões a partir do schema `prontuario-v1` (paciente, sinais vitais,
+  diagnósticos, medicamentos e alergias). Campo ausente aparece como "—"; `alergias: null` aparece como "não
+  informado", que é diferente de lista vazia ("nenhuma").

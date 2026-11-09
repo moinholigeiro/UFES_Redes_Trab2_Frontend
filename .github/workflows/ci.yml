@@ -1,0 +1,16 @@
+# Roda a cada push e pull request: testes do parser SSE e do controller (Node test runner).
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm test
+      - run: npm run build
