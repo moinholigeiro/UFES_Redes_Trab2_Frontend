@@ -1,5 +1,10 @@
 # Changelog — Frontend
 
+## 11/11/2026 — Instruções para executar
+
+- **Corrigido:** documentação de execução para refletir que o Backend não serve o Frontend e não possui `lab.py demo`.
+- **Documentado:** build/servidor estático, inicialização separada do gateway, URL da API, CORS e dependência dos runtimes.
+
 ## 09/11/2026 — Plano v2
 
 Detalhes e motivos no Backend: `docs/MUDANCAS.md` (itens 3, 6, 10, 11 e 16). Estado anterior: tag `antes-do-plano-v2`.

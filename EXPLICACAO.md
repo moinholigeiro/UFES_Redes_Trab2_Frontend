@@ -16,19 +16,25 @@ flowchart LR
         CTRL["controller.js<br/>máquina de estados"]
         SSE["api/sse.js<br/>parser SSE"]
     end
+    subgraph HOST["Servidor estático (Frontend)"]
+        STATIC["GET / e /src/*<br/>index.html, CSS e módulos"]
+    end
     subgraph BE["Gateway (repo Backend)"]
-        STATIC["GET / e /src/*<br/>serve esta tela"]
         API["POST /v1/generate<br/>stream SSE"]
     end
-    STATIC -->|"mesma origem: sem CORS"| UI
+    STATIC --> UI
     UI --> CTRL --> SSE
-    SSE -->|"fetch POST + Bearer<br/>HTTPS"| API
+    SSE -->|"fetch POST + Bearer<br/>CORS quando origens diferem"| API
     API -->|"meta · queued · delta · result · done · error"| SSE
     CTRL --> CARDS
 ```
 
-O `lab.py` do Backend sobe o gateway com `frontend_dir` apontando para este repositório. A tela abre em
-`https://127.0.0.1:8443` e usa a própria origem como URL da API.
+O Frontend é servido separadamente do Backend. Para desenvolvimento, `npm run build` gera `dist/` e
+`python3 -m http.server 5173 --directory dist` serve a página em `http://127.0.0.1:5173`. O gateway atual não hospeda
+esta interface: execute-o separadamente conforme o README. Como a interface e a API têm origens diferentes, a
+configuração CORS do gateway precisa permitir a origem da página. A URL inicial do Backend na tela é `location.origin`,
+portanto, ao usar o servidor estático, informe manualmente a URL da API (por exemplo, `http://127.0.0.1:8080` no
+perfil mínimo local).
 
 ### 1.2 A máquina de estados de um pedido (`controller.js`)
 
