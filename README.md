@@ -65,3 +65,7 @@ idêntica com `scripts/check-public-contract.sh`. Eventos: `meta`, `queued`, `de
 - **Use apenas textos sintéticos**: nunca dados reais de saúde.
 
 Histórico: [CHANGELOG.md](CHANGELOG.md).
+
+## Teste no laboratório e apresentação
+
+O roteiro de teste com vários PCs e o material para a apresentação (decisões técnicas, trade-offs e perguntas prováveis) estão no repositório Backend: `docs/ROTEIRO-E-APRESENTACAO.pdf`.
