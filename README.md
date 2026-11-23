@@ -12,35 +12,28 @@ Diagramas e código explicados: [EXPLICACAO.md](EXPLICACAO.md).
 
 ## Rodar
 
-A interface é estática; o Backend atual **não** serve os arquivos do Frontend e não há comando `lab.py demo`. Para
-abrir a página, na raiz deste repositório execute:
+**Jeito normal: pelo gateway (mesma origem, sem CORS).** O gateway do Backend serve esta tela em `/`. Com os três
+repositórios lado a lado:
+
+```bash
+cd ../UFES_Redes_Trab2_Backend
+python3 lab.py demo        # sobe os nós LLM e o gateway; imprime a URL e o token
+```
+
+Abra `https://127.0.0.1:8443`, aceite o certificado da CA local e cole o token impresso no terminal. A URL do Backend
+na tela já vem preenchida com a própria origem. Várias máquinas: `docs/LABORATORIO.md` do Backend.
+
+**Alternativa: servidor estático separado** (para mexer só na tela). Em outro terminal, com o gateway no ar:
 
 ```bash
 npm run build
 python3 -m http.server 5173 --directory dist
 ```
 
-Abra <http://127.0.0.1:5173>. Não abra `index.html` diretamente como arquivo (`file://`). O primeiro comando cria
-`dist/`; o segundo inicia um servidor estático de desenvolvimento. Para apenas conferir a interface, isso basta.
-
-Para enviar pedidos, o gateway e os runtimes LLM também precisam estar ativos. Em outro terminal, na raiz do
-repositório Backend, inicie o ambiente e o gateway com o perfil mínimo:
-
-```bash
-devenv shell
-llm-gateway serve --config configs/cpu_minimal.toml
-```
-
-Esse perfil usa `http://127.0.0.1:8080` para a API, permite CORS da origem `http://127.0.0.1:5173` e não exige token.
-Ele pressupõe que os runtimes LLM estejam rodando nas portas `8101` e `8102`; iniciar o gateway sozinho não inicia os
-modelos. Na interface, informe `http://127.0.0.1:8080` em **URL do Backend** (a URL inicial é a origem da página) e,
-para esse perfil sem autenticação, deixe o token vazio. O servidor estático da página pode continuar rodando no
-primeiro terminal.
-
-Se servir a interface em outra origem, adicione a origem exata do Frontend a `gateway.cors_origins` no arquivo de
-configuração do Backend e use HTTPS para origens remotas. A página aceita HTTP apenas em loopback; para um gateway
-remoto exige HTTPS e confirmação explícita antes de enviar o token. Veja o README do Backend para configurar TLS,
-credenciais e runtimes.
+Abra `http://127.0.0.1:5173` (não abra `index.html` como arquivo) e informe a URL do gateway em **URL do Backend**.
+Como a página e a API ficam em origens diferentes, a origem da página precisa estar em `gateway.cors_origins` no
+Backend; o perfil `configs/cpu_minimal.toml` já permite `http://127.0.0.1:5173`. Para um gateway remoto, a tela
+exige HTTPS e a confirmação de confiança na origem antes de enviar o token.
 
 ## Testes
 

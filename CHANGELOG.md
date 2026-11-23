@@ -1,5 +1,12 @@
 # Changelog — Frontend
 
+## 22/11/2026 — Como rodar, corrigido
+
+- **Corrigido:** a entrada de 11/11 dizia que o Backend não serve a tela e que não existe `lab.py demo`. Os dois
+  existem desde 09/11 (`gateway.frontend_dir` e `lab.py demo` no Backend). O README e o EXPLICACAO voltaram a mostrar o
+  gateway servindo a tela na mesma origem. O servidor estático separado, documentado em 11/11, ficou como alternativa
+  para desenvolver só a tela.
+
 ## 11/11/2026 — Instruções para executar
 
 - **Corrigido:** documentação de execução para refletir que o Backend não serve o Frontend e não possui `lab.py demo`.
